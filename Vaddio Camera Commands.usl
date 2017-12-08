@@ -1,0 +1,383 @@
+/*
+
+Vaddio IP/RS-232 Camera Control - Command Library
+====================================================================================================
+
+    Jonathan Brenner
+    AVI Systems, Inc.
+
+    This library contains functions for building and parsing commands for Vaddio cameras such as
+    the ClearSHOT and RoboSHOT models. This library is meant to be used in conjunction with wrapper
+    modules that handle interface logic.
+
+    Shared Functions:
+        init() - Initilizes the camera settings and commands. Should be run once, first.
+        getCommand() - Returns the desired command for use in a wrapper module.
+        getPresetCommand() - Returns the desiged preset command. Supports an additional parameter.
+        updateSpeeds() - Updates the PTZ commands, replacing default speeds with custom speeds.
+
+    The rest of the functions should only be called within from within this library.
+
+====================================================================================================
+
+Revision Notes
+====================================================================================================
+    v0.5 | December 8, 2017 | JRB
+----------------------------------------------------------------------------------------------------
+        - Initial Beta
+
+*/
+
+
+/*--------------------------------------------------------------------------------------------------
+    Compiler Directives
+--------------------------------------------------------------------------------------------------*/
+    #DEFAULT_VOLATILE
+
+
+/*--------------------------------------------------------------------------------------------------
+    Constants
+--------------------------------------------------------------------------------------------------*/
+    #DEFINE_CONSTANT RS 0
+    #DEFINE_CONSTANT IP 1
+
+    #DEFINE_CONSTANT CAMERA_HOME   1
+    #DEFINE_CONSTANT CAMERA_REBOOT 2
+
+    #DEFINE_CONSTANT CAMERA_POWER_ON  3
+    #DEFINE_CONSTANT CAMERA_POWER_OFF 4
+
+    #DEFINE_CONSTANT CAMERA_PRESET_LOAD 5
+    #DEFINE_CONSTANT CAMERA_PRESET_SAVE 6
+
+    #DEFINE_CONSTANT CAMERA_PAN_STOP  7
+    #DEFINE_CONSTANT CAMERA_PAN_LEFT  8
+    #DEFINE_CONSTANT CAMERA_PAN_RIGHT 9
+
+    #DEFINE_CONSTANT CAMERA_TILT_STOP 10
+    #DEFINE_CONSTANT CAMERA_TILT_UP   11
+    #DEFINE_CONSTANT CAMERA_TILT_DOWN 12
+
+    #DEFINE_CONSTANT CAMERA_ZOOM_STOP 13
+    #DEFINE_CONSTANT CAMERA_ZOOM_IN   14
+    #DEFINE_CONSTANT CAMERA_ZOOM_OUT  15
+
+    #DEFINE_CONSTANT CAMERA_FOCUS_STOP 16
+    #DEFINE_CONSTANT CAMERA_FOCUS_NEAR 17
+    #DEFINE_CONSTANT CAMERA_FOCUS_FAR  18
+
+    #DEFINE_CONSTANT CAMERA_AFOCUS_ON  19
+    #DEFINE_CONSTANT CAMERA_AFOCUS_OFF 20
+
+
+/*--------------------------------------------------------------------------------------------------
+    Structures
+--------------------------------------------------------------------------------------------------*/
+    STRUCTURE VaddioCamera
+    {
+        // Camera Config
+        integer id;
+        integer mode;
+
+        // Default Speeds
+        integer defPanSpeed;
+        integer defTiltSpeed;
+        integer defZoomSpeed;
+        integer defFocusSpeed;
+
+        // Current Speeds
+        integer curPanSpeed;
+        integer curTiltSpeed;
+        integer curZoomSpeed;
+        integer curFocusSpeed;
+
+        // Max Speeds
+        integer maxPanSpeed;
+        integer maxTiltSpeed;
+        integer maxZoomSpeed;
+        integer maxFocusSpeed;
+
+        // Command Deliminator
+        string delim[3];
+
+        // Command List
+        string cmd[60][255];
+    };
+
+
+/*--------------------------------------------------------------------------------------------------
+    Functions (Private)
+--------------------------------------------------------------------------------------------------*/
+
+    /*  init_rs232
+     *  --------------------
+     *
+     *  DESC
+     *    Acts like an object constructor to initialize the supplied camera object with the values
+     *    and command strings for the RS-232 mode.
+     *
+     *  PARAMS
+     *    cam: The VaddioCamera object to reference. Defined in the wrapper module.
+     *    cam_id: The camera's id used for communication targeting and identification.
+     *
+     */
+    function init_rs232(VaddioCamera cam, integer cam_id)
+    {
+        string camID[1];
+
+        // Camera Settings
+        cam.id = cam_id;
+        cam.mode = RS;
+        cam.delim = "\xFF";
+
+        // PTZ Speed Settings
+        cam.maxPanSpeed   = 24;
+        cam.maxTiltSpeed  = 20;
+        cam.maxZoomSpeed  = 7;
+        cam.maxFocusSpeed = 8;
+
+        cam.defPanSpeed   = 13;
+        cam.defTiltSpeed  = 11;
+        cam.defZoomSpeed  = 4;
+        cam.defFocusSpeed = 4;
+
+        cam.curPanSpeed   = cam.defPanSpeed;
+        cam.curTiltSpeed  = cam.defTiltSpeed;
+        cam.curZoomSpeed  = cam.defZoomSpeed;
+        cam.curFocusSpeed = cam.defFocusSpeed;
+
+        // Camera Static Commands
+        camID = chr(cam.id + 128);
+
+        cam.cmd[CAMERA_HOME]   = camID + "\x01\x06\x0C";
+        cam.cmd[CAMERA_REBOOT] = camID + "\x01\x04\x00\x02";
+
+        cam.cmd[CAMERA_POWER_OFF]  = camID + "\x01\x04\x00\x03";
+        cam.cmd[CAMERA_POWER_ON] = camID + "\x01\x04\x00\x02";
+
+        cam.cmd[CAMERA_FOCUS_STOP] = camID + "\x01\x04\x08\x00";
+
+        cam.cmd[CAMERA_AFOCUS_ON]  = camID + "\x01\x04\x38\x02";
+        cam.cmd[CAMERA_AFOCUS_OFF] = camID + "\x01\x04\x38\x03";
+
+        cam.cmd[CAMERA_PRESET_LOAD] = camID + "\x01\x04\x3F\x02";
+        cam.cmd[CAMERA_PRESET_SAVE] = camID + "\x01\x04\x3F\x01";
+    }
+
+
+    /*  init_ip
+     *  --------------------
+     *
+     *  DESC
+     *    Acts like an object constructor to initialize the supplied camera object with the values
+     *    and command strings for the IP mode.
+     *
+     *  PARAMS
+     *    cam: The VaddioCamera object to reference. Defined in the wrapper module.
+     *    cam_id: The camera's id used for identification.
+     *
+     */
+    function init_ip(VaddioCamera cam, integer cam_id)
+    {
+        // Camera Settings
+        cam.id = cam_id;
+        cam.mode = IP;
+        cam.delim = "\r";
+
+        // PTZ Speed Settings
+        cam.maxPanSpeed   = 24;
+        cam.maxTiltSpeed  = 20;
+        cam.maxZoomSpeed  = 7;
+        cam.maxFocusSpeed = 8;
+
+        cam.defPanSpeed   = 13;
+        cam.defTiltSpeed  = 11;
+        cam.defZoomSpeed  = 4;
+        cam.defFocusSpeed = 4;
+
+        cam.curPanSpeed   = cam.defPanSpeed;
+        cam.curTiltSpeed  = cam.defTiltSpeed;
+        cam.curZoomSpeed  = cam.defZoomSpeed;
+        cam.curFocusSpeed = cam.defFocusSpeed;
+
+        // Camera Static Commands
+        cam.cmd[CAMERA_HOME]   = "camera home";
+        cam.cmd[CAMERA_REBOOT] = "camera reboot";
+
+        cam.cmd[CAMERA_POWER_OFF]  = "camera standby on";
+        cam.cmd[CAMERA_POWER_ON] = "camera standby off";
+
+        cam.cmd[CAMERA_PAN_STOP]  = "camera pan stop";
+        cam.cmd[CAMERA_TILT_STOP] = "camera tilt stop";
+        cam.cmd[CAMERA_ZOOM_STOP] = "camera zoom stop";
+        cam.cmd[CAMERA_FOCUS_STOP] = "camera focus stop";
+
+        cam.cmd[CAMERA_AFOCUS_ON]  = "camera focus mode auto";
+        cam.cmd[CAMERA_AFOCUS_OFF] = "camera focus mode manual";
+
+        cam.cmd[CAMERA_PRESET_LOAD] = "camera preset recall";
+        cam.cmd[CAMERA_PRESET_SAVE] = "camera preset store";
+    }
+
+/*--------------------------------------------------------------------------------------------------
+    Functions (Public)
+--------------------------------------------------------------------------------------------------*/
+
+    /*  updateSpeeds
+     *  --------------------
+     *
+     *  DESC
+     *    Updates the camera's PTZ and focus commands to apply new movement speed settings. If the
+     *    speed is outside of the defined bounds, the default speed is applied instead.
+     *
+     *  PARAMS
+     *    cam: The VaddioCamera object to reference. Defined in the wrapper module.
+     *    ps: Desired pan speed.
+     *    ts: Desired tilt speed.
+     *    zs: Desired zoom speed.
+     *    fs: Desired focus speed.
+     *
+     */
+    function updateSpeeds(VaddioCamera cam, integer ps, integer ts, integer zs, integer fs)
+    {
+        string camID[1];
+        string speeds[2];
+
+        // Pan
+        if (ps > 0 && ps <= cam.maxPanSpeed)
+            cam.curPanSpeed = ps;
+        else
+            cam.curPanSpeed = cam.defPanSpeed;
+
+        // Tilt
+        if (ts > 0 && ts <= cam.maxTiltSpeed)
+            cam.curTiltSpeed = ts;
+        else
+            cam.curTiltSpeed = cam.defTiltSpeed;
+
+        // Zoom
+        if (zs > 0 && zs <= cam.maxZoomSpeed)
+            cam.curZoomSpeed = zs;
+        else
+            cam.curZoomSpeed = cam.defZoomSpeed;
+
+        // Focus
+        if (fs > 0 && fs <= cam.maxFocusSpeed)
+            cam.curFocusSpeed = fs;
+        else
+            cam.curFocusSpeed = cam.defFocusSpeed;
+
+        switch(cam.mode)
+        {
+            case(RS):
+            {
+                camID = chr(cam.id + 128);
+                speeds = chr(cam.curPanSpeed) + chr(cam.curTiltSpeed) + chr(cam.curZoomSpeed);
+
+                cam.cmd[CAMERA_TILT_UP]   = camID + "\x01\x06\x0A" + speeds + "\x03\x01\x03";
+                cam.cmd[CAMERA_TILT_DOWN] = camID + "\x01\x06\x0A" + speeds + "\x03\x02\x03";
+                cam.cmd[CAMERA_PAN_LEFT]  = camID + "\x01\x06\x0A" + speeds + "\x01\x03\x03";
+                cam.cmd[CAMERA_PAN_RIGHT] = camID + "\x01\x06\x0A" + speeds + "\x02\x03\x03";
+                cam.cmd[CAMERA_ZOOM_IN]   = camID + "\x01\x06\x0A" + speeds + "\x03\x03\x01";
+                cam.cmd[CAMERA_ZOOM_OUT]  = camID + "\x01\x06\x0A" + speeds + "\x03\x03\x02";
+
+                cam.cmd[CAMERA_PAN_STOP]  = camID + "\x01\x06\x0A" + speeds + "\x03\x03\x03";
+                cam.cmd[CAMERA_TILT_STOP] = camID + "\x01\x06\x0A" + speeds + "\x03\x03\x03";
+                cam.cmd[CAMERA_ZOOM_STOP] = camID + "\x01\x06\x0A" + speeds + "\x03\x03\x03";
+
+                cam.cmd[CAMERA_FOCUS_NEAR] = camID + "\x01\x04\x08" + chr(cam.curFocusSpeed + 32);
+                cam.cmd[CAMERA_FOCUS_FAR]  = camID + "\x01\x04\x08" + chr(cam.curFocusSpeed + 48);
+            }
+            case(IP):
+            {
+                cam.cmd[CAMERA_PAN_LEFT]  = "camera pan left "  + ITOA(cam.curPanSpeed);
+                cam.cmd[CAMERA_PAN_RIGHT] = "camera pan right " + ITOA(cam.curPanSpeed);
+
+                cam.cmd[CAMERA_TILT_UP]   = "camera tilt up "   + ITOA(cam.curTiltSpeed);
+                cam.cmd[CAMERA_TILT_DOWN] = "camera tilt down " + ITOA(cam.curTiltSpeed);
+
+                cam.cmd[CAMERA_ZOOM_IN]   = "camera zoom in "  + ITOA(cam.curZoomSpeed);
+                cam.cmd[CAMERA_ZOOM_OUT]  = "camera zoom out " + ITOA(cam.curZoomSpeed);
+
+                cam.cmd[CAMERA_FOCUS_NEAR] = "camera focus near " + ITOA(cam.curFocusSpeed);
+                cam.cmd[CAMERA_FOCUS_FAR]  = "camera focus far "  + ITOA(cam.curFocusSpeed);
+            }
+        }
+    }
+
+
+    /*  init
+     *  --------------------
+     *
+     *  DESC
+     *    Passes the supplied camera object reference to the proper initializing method based on
+     *    the camera mode.
+     *
+     *  PARAMS
+     *    cam: The VaddioCamera object to reference. Defined in the wrapper module.
+     *    mode: The mode by which the camera values and command string will be defined. (232 or IP)
+     *    cam_id: An identifier for the camera. Optional for IP mode, required for RS-232 mode.
+     *
+     */
+    function init(VaddioCamera cam, integer mode, integer cam_id)
+    {
+        switch (mode)
+        {
+            case(RS):{ init_rs232(cam, cam_id); }
+            case(IP):{ init_ip(cam, cam_id); }
+        }
+
+        updateSpeeds(cam, cam.curPanSpeed, cam.curTiltSpeed, cam.curZoomSpeed, cam.curFocusSpeed);
+    }
+
+
+    /*  getCommand
+     *  --------------------
+     *
+     *  DESC
+     *    Returns the requested command string for use in wrapper modules.
+     *
+     *  PARAMS
+     *    cam: The VaddioCamera object to reference. Defined in the wrapper module.
+     *    index: The requested command's index value. Typically reference by a constant (MOVE_UP = 11)
+     *
+     *  RETURN
+     *    The requested command.
+     *
+     */
+    string_function getCommand(VaddioCamera cam, integer index)
+    {
+        string cmd[255];
+
+        MakeString(cmd, "%s%s", cam.cmd[index], cam.delim);
+
+        return(cmd);
+    }
+
+
+    /*  getPresetCommand
+     *  --------------------
+     *
+     *  DESC
+     *    Returns the requested command string for use in wrapper modules.
+     *
+     *  PARAMS
+     *    cam: The VaddioCamera object to reference. Defined in the wrapper module.
+     *    index: The requested command's index value. Typically reference by a constant (MOVE_UP = 11)
+     *    preset: The preset number to work with.
+     *
+     *  RETURN
+     *    The requested command.
+     *
+     */
+    string_function getPresetCommand(VaddioCamera cam, integer index, integer preset)
+    {
+        string cmd[255];
+
+        if (cam.mode = RS)
+            MakeString(cmd, "%s%s%s", cam.cmd[index], chr(preset), cam.delim);
+        else
+            MakeString(cmd, "%s%s%s", cam.cmd[index], itoa(preset), cam.delim);
+
+        return(cmd);
+    }

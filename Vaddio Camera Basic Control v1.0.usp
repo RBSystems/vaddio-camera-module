@@ -1,0 +1,284 @@
+/*
+
+Vaddio IP/RS-232 Camera Control - Basic Interface
+====================================================================================================
+
+    Jonathan Brenner
+    AVI Systems, Inc.
+
+    This module acts as a wrapper interface for calling Vaddio camera control commands via
+    RS-232 and/or IP protocols. This module expects a command library. The command library
+    contains the functions for building and parsing the actual commands.
+
+====================================================================================================
+
+Revision Notes
+====================================================================================================
+    V1.0 | November 7, 2017 | JRB
+----------------------------------------------------------------------------------------------------
+        - Initial Release
+
+*/
+
+/*--------------------------------------------------------------------------------------------------
+    Compiler Directives
+--------------------------------------------------------------------------------------------------*/
+    #SYMBOL_NAME "Vaddio Camera (Basic) v1.0"
+    #CATEGORY "19" // Camera
+    #DEFAULT_VOLATILE
+    #ENABLE_STACK_CHECKING
+    #ENABLE_DYNAMIC
+    #ENABLE_TRACE
+
+    #INCLUDEPATH "..\\"
+    #USER_LIBRARY "Vaddio Camera Commands"
+
+
+/*--------------------------------------------------------------------------------------------------
+    Constants
+--------------------------------------------------------------------------------------------------*/
+    #DEFINE_CONSTANT FALSE 0
+    #DEFINE_CONSTANT TRUE  1
+    #DEFINE_CONSTANT NONE  ""
+
+    #DEFINE_CONSTANT MAX_PRESET 6
+    #DEFINE_CONSTANT MAX_BUFFER 65534
+
+
+/*--------------------------------------------------------------------------------------------------
+    Inputs
+--------------------------------------------------------------------------------------------------*/
+    DIGITAL_INPUT
+        Power_On, Power_Off, Reboot, _SKIP_,
+        Home, _SKIP_,
+        Tilt_Up, Tilt_Down, Pan_Left, Pan_Right, _SKIP_,
+        Zoom_In, Zoom_Out, _SKIP_,
+        Focus_Near, Focus_Far, _SKIP_,
+        Auto_Focus_On, Auto_Focus_Off, _SKIP_, _SKIP_,
+        Preset[MAX_PRESET],
+        _SKIP_;
+
+    ANALOG_INPUT
+        Pan_Speed, Tilt_Speed, Zoom_Speed, Focus_Speed,
+        _SKIP_;
+
+    BUFFER_INPUT
+        From_Device[MAX_BUFFER];
+
+
+/*--------------------------------------------------------------------------------------------------
+    Outputs
+--------------------------------------------------------------------------------------------------*/
+    DIGITAL_OUTPUT
+        _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_,
+        _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_,
+        _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_,
+        _SKIP_, _SKIP_,
+        Preset_Saved;
+
+    STRING_OUTPUT
+        _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_,
+        _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_,
+        To_Device;
+
+
+/*--------------------------------------------------------------------------------------------------
+    Parameters
+--------------------------------------------------------------------------------------------------*/
+    INTEGER_PARAMETER
+        _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_,
+        _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_,
+        _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_,
+        _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_,
+        _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_,
+        _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_, _SKIP_,
+        Camera_Mode, Camera_ID;
+
+    STRING_PARAMETER
+        Username[255], Password[255];
+
+
+/*--------------------------------------------------------------------------------------------------
+    Parameter Properties
+--------------------------------------------------------------------------------------------------*/
+    #BEGIN_PARAMETER_PROPERTIES Camera_Mode
+        propValidUnits = unitDecimal;
+        propDefaultUnit = unitDecimal;
+        propDefaultValue = 0d;
+        propList = {0d, "RS-232"}, {1d, "IP"};
+    #END_PARAMETER_PROPERTIES
+
+    #BEGIN_PARAMETER_PROPERTIES Username
+        propValidUnits = unitString;
+        propDefaultUnit = unitString;
+        propDefaultValue = "admin";
+    #END_PARAMETER_PROPERTIES
+
+    #BEGIN_PARAMETER_PROPERTIES Password
+        propValidUnits = unitString;
+        propDefaultUnit = unitString;
+        propDefaultValue = "password";
+    #END_PARAMETER_PROPERTIES
+
+    #BEGIN_PARAMETER_PROPERTIES Camera_ID
+        propValidUnits = unitDecimal;
+        propDefaultUnit = unitDecimal;
+        propBounds = 1d, 7d;
+        propDefaultValue = 1d;
+    #END_PARAMETER_PROPERTIES
+
+
+/*--------------------------------------------------------------------------------------------------
+    Global Variables
+--------------------------------------------------------------------------------------------------*/
+    VaddioCamera Camera;
+
+    integer curPreset;
+    string returnString[500];
+
+
+/*--------------------------------------------------------------------------------------------------
+    Functions
+--------------------------------------------------------------------------------------------------*/
+    function sendCommand(integer command)
+    {
+        MakeString(To_Device, "%s", getCommand(Camera, command));
+    }
+
+    function recallPreset(integer i)
+    {
+        if (i > 0 && i < MAX_PRESET)
+        {
+            MakeString(To_Device, "%s", getPresetCommand(Camera, CAMERA_PRESET_LOAD, i));
+        }
+        else
+        {
+            trace("Invalid Preset Number");
+        }
+    }
+
+    function storePreset(integer i)
+    {
+        if (i > 0 && i < MAX_PRESET)
+        {
+            MakeString(To_Device, "%s", getPresetCommand(Camera, CAMERA_PRESET_SAVE, i));
+            Delay(100);
+            Pulse(200, Preset_Saved);
+        }
+        else
+        {
+            trace("Invalid Preset Number");
+        }
+    }
+
+    function parseFeedback(string str)
+    {
+        if (str = "ok\r")
+            return;
+
+        // Strip delimiter
+        str = left(str, len(str) - 1);
+
+        if (Find("login:", str) > 0)
+        {
+            MakeString(To_Device, "%s\r", Username);
+        }
+        else if (Find("password:", str) > 0)
+        {
+            MakeString(To_Device, "%s\r", Password);
+        }
+    }
+
+
+/*--------------------------------------------------------------------------------------------------
+    Event Handlers
+--------------------------------------------------------------------------------------------------*/
+
+    // PTZF Control
+
+    PUSH Power_On  { sendCommand(CAMERA_POWER_ON); }
+    PUSH Power_Off { sendCommand(CAMERA_POWER_OFF); }
+    PUSH Reboot { sendCommand(CAMERA_REBOOT); }
+
+    PUSH Home { sendCommand(CAMERA_HOME); }
+
+    PUSH Tilt_Up       { sendCommand(CAMERA_TILT_UP); }
+    PUSH Tilt_Down     { sendCommand(CAMERA_TILT_DOWN); }
+    RELEASE Tilt_Up    { sendCommand(CAMERA_TILT_STOP); }
+    RELEASE Tilt_Down  { sendCommand(CAMERA_TILT_STOP); }
+
+    PUSH Pan_Left      { sendCommand(CAMERA_PAN_LEFT); }
+    PUSH Pan_Right     { sendCommand(CAMERA_PAN_RIGHT); }
+    RELEASE Pan_Left   { sendCommand(CAMERA_PAN_STOP); }
+    RELEASE Pan_Right  { sendCommand(CAMERA_PAN_STOP); }
+
+    PUSH Zoom_In       { sendCommand(CAMERA_ZOOM_IN); }
+    PUSH Zoom_Out      { sendCommand(CAMERA_ZOOM_OUT); }
+    RELEASE Zoom_In    { sendCommand(CAMERA_ZOOM_STOP); }
+    RELEASE Zoom_Out   { sendCommand(CAMERA_ZOOM_STOP); }
+
+    PUSH Focus_Near    { sendCommand(CAMERA_FOCUS_NEAR); }
+    PUSH Focus_Far     { sendCommand(CAMERA_FOCUS_FAR); }
+    RELEASE Focus_Near { sendCommand(CAMERA_FOCUS_STOP); }
+    RELEASE Focus_Far  { sendCommand(CAMERA_FOCUS_STOP); }
+
+    PUSH Auto_Focus_On  { sendCommand(CAMERA_AFOCUS_ON); }
+    PUSH Auto_Focus_Off { sendCommand(CAMERA_AFOCUS_OFF); }
+
+
+    // Preset Recall/Store
+
+    PUSH Preset
+    {
+        curPreset = getLastModifiedArrayIndex();
+        wait(300, Preset_Hold)
+        {
+            if (curPreset)
+                storePreset(curPreset);
+        }
+    }
+
+    RELEASE Preset
+    {
+        CancelWait(Preset_Hold);
+        recallPreset(curPreset);
+    }
+
+
+    // PTZF Speed Settings
+
+    CHANGE Pan_Speed, Tilt_Speed, Zoom_Speed, Focus_Speed
+    {
+        updateSpeeds(Camera, Pan_Speed, Tilt_Speed, Zoom_Speed, Focus_Speed);
+    }
+
+
+    // Received data parsing
+    THREADSAFE CHANGE From_Device
+    {
+        while(Camera_Mode = IP)
+        {
+            returnString = Gather("\r", From_Device);
+            parseFeedback(Lower(returnString));
+            returnString = "";
+        }
+
+        #IF_DEFINED DEBUG
+            trace("Vaddio Camera Response:[%s]", From_Device);
+        #ENDIF
+    }
+
+
+/*--------------------------------------------------------------------------------------------------
+    Main
+--------------------------------------------------------------------------------------------------*/
+    function Main()
+    {
+        returnString = "";
+
+        init(Camera, Camera_Mode, Camera_ID);
+
+        WaitForInitializationComplete();
+
+        updateSpeeds(Camera, Pan_Speed, Tilt_Speed, Zoom_Speed, Focus_Speed);
+    }
