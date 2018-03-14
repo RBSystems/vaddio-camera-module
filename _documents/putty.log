@@ -1,0 +1,39 @@
+=~=~=~=~=~=~=~=~=~=~=~= PuTTY log 2017.12.08 15:50:43 =~=~=~=~=~=~=~=~=~=~=~=
+
+
+  /\\\        /\\\   /\\\\\     /\\\      /\\\\\\\\\\\\         
+  \/\\\       \/\\\  \/\\\\\\   \/\\\    /\\\//////////         
+   \//\\\      /\\\   \/\\\/\\\  \/\\\   /\\\                   
+     \//\\\    /\\\    \/\\\//\\\ \/\\\  \/\\\    /\\\\\\\      
+       \//\\\  /\\\     \/\\\\//\\\\/\\\  \/\\\   \/////\\\     
+         \//\\\/\\\      \/\\\ \//\\\/\\\  \/\\\       \/\\\    
+           \//\\\\\       \/\\\  \//\\\\\\  \/\\\       \/\\\   
+             \//\\\        \/\\\   \//\\\\\  \//\\\\\\\\\\\\/   
+               \///         \///     \/////    \////////////    
+                                                                                                      
+Vaddio LLC http://www.vaddio.com
+
+Vaddio VNG 1.6+snapshot-20160418 vaddio-conferenceshot-54-10-EC-30-FF-33
+
+
+vaddio-conferenceshot-54-10-EC-30-FF-33 login: admin
+Password: 
+Last login: Thu Nov 10 10:26:56 +0000 2016 on /dev/pts/0.
+
+********************************************
+*         Vaddio Interactive Shell         *
+*                                          *
+*      WARNING: Authorized Access Only     *
+********************************************
+        
+Welcome admin
+> [J
+  camera     Camera controls and inquiries
+  network    Network settings and utilities
+  sleep      Waits for a period of time
+  streaming  View streaming settings
+  system     System utilities
+  version    Display version information
+  video      Video output controls
+
+> [J[Je[Jx[Ji[Jt[J

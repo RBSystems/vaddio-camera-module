@@ -14,7 +14,12 @@ Vaddio IP/RS-232 Camera Control - Basic Interface
 
 Revision Notes
 ====================================================================================================
-    V1.0 | November 7, 2017 | JRB
+    V0.5 | November 7, 2017 | JRB
+----------------------------------------------------------------------------------------------------
+        - Initial Beta
+
+----------------------------------------------------------------------------------------------------
+    v1.0 | March 14, 2018 | JRB
 ----------------------------------------------------------------------------------------------------
         - Initial Release
 
@@ -32,6 +37,8 @@ Revision Notes
 
     #INCLUDEPATH "..\\"
     #USER_LIBRARY "Vaddio Camera Commands"
+
+    // #DEFINE_CONSTANT DEBUG 1
 
 
 /*--------------------------------------------------------------------------------------------------
@@ -173,17 +180,21 @@ Revision Notes
 
     function parseFeedback(string str)
     {
+        #IF_DEFINED DEBUG
+            trace("Command to Parse:[%s]", str);
+        #ENDIF
+
         if (str = "ok\r")
             return;
 
-        // Strip delimiter
-        str = left(str, len(str) - 1);
-
-        if (Find("login:", str) > 0)
+        if (find("login:", str))
         {
-            MakeString(To_Device, "%s\r", Username);
+            if(find(username, str))
+                MakeString(To_Device, "%s\r", Password);
+            else
+                MakeString(To_Device, "%s\r", Username);
         }
-        else if (Find("password:", str) > 0)
+        else if (find("password:", str) > 0)
         {
             MakeString(To_Device, "%s\r", Password);
         }
@@ -256,16 +267,23 @@ Revision Notes
     // Received data parsing
     THREADSAFE CHANGE From_Device
     {
-        while(Camera_Mode = IP)
-        {
-            returnString = Gather("\r", From_Device);
-            parseFeedback(Lower(returnString));
-            returnString = "";
-        }
-
         #IF_DEFINED DEBUG
             trace("Vaddio Camera Response:[%s]", From_Device);
         #ENDIF
+
+        while(Camera_Mode = IP)
+        {
+            returnString = gather("\r", From_Device, 200);
+            if (returnString != "")
+            {
+                parseFeedback(lower(returnString));
+            }
+            else if (From_Device != "")
+            {
+                parseFeedback(lower(From_Device));
+                clearBuffer(From_Device);
+            }
+        }
     }
 
 
