@@ -1,6 +1,6 @@
 /*
 
-Vaddio IP/RS-232 Camera Control - Command Library
+Vaddio IP/RS-232 Camera Control - Command Library - v1.1
 ====================================================================================================
 
     Jonathan Brenner
@@ -30,6 +30,11 @@ Revision Notes
     v1.0 | March 14, 2018 | JRB
 ----------------------------------------------------------------------------------------------------
         - Initial Release
+
+----------------------------------------------------------------------------------------------------
+    v1.1 | March 16, 2018 | JRB
+----------------------------------------------------------------------------------------------------
+        - Changed PTZ commands to VISCA standard to improve compatibility.
 
 */
 
@@ -277,21 +282,25 @@ Revision Notes
             case(RS):
             {
                 camID = chr(cam.id + 128);
-                speeds = chr(cam.curPanSpeed) + chr(cam.curTiltSpeed) + chr(cam.curZoomSpeed);
+                speeds = chr(cam.curPanSpeed) + chr(cam.curTiltSpeed);
 
-                cam.cmd[CAMERA_TILT_UP]   = camID + "\x01\x06\x0A" + speeds + "\x03\x01\x03";
-                cam.cmd[CAMERA_TILT_DOWN] = camID + "\x01\x06\x0A" + speeds + "\x03\x02\x03";
-                cam.cmd[CAMERA_PAN_LEFT]  = camID + "\x01\x06\x0A" + speeds + "\x01\x03\x03";
-                cam.cmd[CAMERA_PAN_RIGHT] = camID + "\x01\x06\x0A" + speeds + "\x02\x03\x03";
-                cam.cmd[CAMERA_ZOOM_IN]   = camID + "\x01\x06\x0A" + speeds + "\x03\x03\x01";
-                cam.cmd[CAMERA_ZOOM_OUT]  = camID + "\x01\x06\x0A" + speeds + "\x03\x03\x02";
+                cam.cmd[CAMERA_TILT_UP]   = camID + "\x01\x06\x01" + speeds + "\x03\x01";
+                cam.cmd[CAMERA_TILT_DOWN] = camID + "\x01\x06\x01" + speeds + "\x03\x02";
+                cam.cmd[CAMERA_PAN_LEFT]  = camID + "\x01\x06\x01" + speeds + "\x01\x03";
+                cam.cmd[CAMERA_PAN_RIGHT] = camID + "\x01\x06\x01" + speeds + "\x02\x03";
 
-                cam.cmd[CAMERA_PAN_STOP]  = camID + "\x01\x06\x0A" + speeds + "\x03\x03\x03";
-                cam.cmd[CAMERA_TILT_STOP] = camID + "\x01\x06\x0A" + speeds + "\x03\x03\x03";
-                cam.cmd[CAMERA_ZOOM_STOP] = camID + "\x01\x06\x0A" + speeds + "\x03\x03\x03";
+                cam.cmd[CAMERA_PAN_STOP]  = camID + "\x01\x06\x01" + speeds + "\x03\x03";
+                cam.cmd[CAMERA_TILT_STOP] = camID + "\x01\x06\x01" + speeds + "\x03\x03";
+
+                cam.cmd[CAMERA_ZOOM_IN]   = camID + "\x01\x04\x07" + chr(cam.curZoomSpeed + 32);
+                cam.cmd[CAMERA_ZOOM_OUT]  = camID + "\x01\x04\x07" + chr(cam.curZoomSpeed + 48);
+
+                cam.cmd[CAMERA_ZOOM_STOP] = camID + "\x01\x04\x07\x00";
 
                 cam.cmd[CAMERA_FOCUS_NEAR] = camID + "\x01\x04\x08" + chr(cam.curFocusSpeed + 32);
                 cam.cmd[CAMERA_FOCUS_FAR]  = camID + "\x01\x04\x08" + chr(cam.curFocusSpeed + 48);
+
+                cam.cmd[CAMERA_FOCUS_STOP] = camID + "\x01\x04\x08\x00";
             }
             case(IP):
             {
