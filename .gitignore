@@ -33,3 +33,7 @@ boot.bt
 *.rte
 *.spp
 *.zig
+
+*.sublime-project
+
+*.sublime-workspace
